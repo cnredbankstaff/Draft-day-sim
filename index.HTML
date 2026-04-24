@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draft Day Simulator</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Rajdhani:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+html, body { height: 100%; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: 'Rajdhani', sans-serif; }
+.font-title { font-family: 'Orbitron', sans-serif; }
+
+@keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pickFlash { 0% { background: rgba(255,255,255,0.3); } 100% { background: transparent; } }
+@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 15px rgba(255,200,0,0.3); } 50% { box-shadow: 0 0 30px rgba(255,200,0,0.7); } }
+.animate-slide { animation: slideIn 0.4s ease-out; }
+.animate-pick { animation: pickFlash 0.8s ease-out; }
+.animate-pulse-glow { animation: pulseGlow 1.5s infinite; }
+
+.slider-stat::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fbbf24; cursor: pointer; border: 2px solid #fff; }
+.slider-stat::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fbbf24; cursor: pointer; border: 2px solid #fff; }
+.slider-stat { -webkit-appearance: none; height: 6px; border-radius: 3px; background: #334155; outline: none; }
+
+.tab-btn { transition: all 0.2s; }
+.tab-btn.active { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 700; }
+
+.team-card { transition: transform 0.2s, box-shadow 0.2s; }
+.team-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+
+.draft-pick-row { transition: background 0.3s; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+</style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full bg-slate-950 text-white overflow-hidden">
+  <div id="app" class="h-full w-full flex flex-col overflow-auto" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);"><!-- Header -->
+   <header class="flex-shrink-0 px-4 py-3 flex items-center justify-between" style="background: linear-gradient(90deg, rgba(15,23,42,0.95), rgba(30,27,75,0.95));">
+    <div class="flex items-center gap-3">
+     <div class="w-10 h-10 rounded-lg flex items-center justify-center font-title font-black text-lg" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><span style="color:#0f172a;">D</span>
+     </div>
+     <h1 id="appTitle" class="font-title font-bold text-lg md:text-xl tracking-wider" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">DRAFT DAY SIMULATOR</h1>
+    </div>
+    <div id="draftStatus" class="text-sm font-semibold text-amber-400 hidden">
+     Round <span id="roundNum">1</span> — Pick <span id="pickNum">1</span>
+    </div>
+   </header><!-- Tabs -->
+   <nav class="flex-shrink-0 flex gap-1 px-4 py-2 bg-slate-900/60"><button class="tab-btn active px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300" data-tab="teams" onclick="switchTab('teams')">Teams</button> <button class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300" data-tab="players" onclick="switchTab('players')">Players</button> <button class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300" data-tab="draft" onclick="switchTab('draft')">Draft</button> <button class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 text-slate-300" data-tab="board" onclick="switchTab('board')">Board</button>
+   </nav><!-- Content -->
+   <div id="content" class="flex-1 overflow-auto p-4"><!-- Teams Tab -->
+    <div id="tab-teams" class="animate-slide">
+     <h2 class="font-title text-lg font-bold text-amber-400 mb-3">SELECT YOUR TEAM</h2>
+     <p class="text-slate-400 text-sm mb-4">Pick a team to control during the draft, or leave unselected to simulate automatically.</p>
+     <div id="teamsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+     <div class="mt-4 flex gap-3"><button onclick="clearTeamSelection()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-semibold transition-colors">Clear Selection</button>
+     </div>
+    </div><!-- Players Tab -->
+    <div id="tab-players" class="hidden animate-slide">
+     <div class="flex flex-col lg:flex-row gap-4"><!-- Create Player -->
+      <div class="lg:w-1/2 bg-slate-900/70 rounded-xl p-4 border border-slate-700/50">
+       <h2 class="font-title text-lg font-bold text-amber-400 mb-3">CREATE PLAYER</h2>
+       <div class="space-y-3">
+        <div><label class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Name</label> <input id="playerName" type="text" placeholder="Enter player name..." class="w-full mt-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm focus:border-amber-400 focus:outline-none transition-colors">
+        </div>
+        <div><label class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Position</label> <select id="playerPos" class="w-full mt-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm focus:border-amber-400 focus:outline-none"> <option>Quarterback</option><option>Running Back</option><option>Wide Receiver</option><option>Tight End</option><option>Offensive Line</option><option>Defensive Line</option><option>Linebacker</option><option>Cornerback</option><option>Safety</option><option>Kicker</option> </select>
+        </div>
+        <div id="statsSliders" class="space-y-2"></div>
+        <div class="flex items-center justify-between pt-1">
+         <div class="text-sm">
+          Overall: <span id="overallRating" class="font-title font-bold text-amber-400 text-lg">50</span>
+         </div>
+         <div class="flex gap-2"><button onclick="randomizeStats()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold transition-colors flex items-center gap-1"><i data-lucide="shuffle" style="width:14px;height:14px;"></i> Random</button> <button onclick="addPlayer()" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add Player</button>
+         </div>
+        </div>
+       </div><button onclick="generatePlayers()" class="mt-3 w-full px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-semibold transition-colors flex items-center justify-center gap-2"><i data-lucide="users" style="width:16px;height:16px;"></i> Auto-Generate 36 Players</button>
+      </div><!-- Player Rankings -->
+      <div class="lg:w-1/2 bg-slate-900/70 rounded-xl p-4 border border-slate-700/50">
+       <div class="flex items-center justify-between mb-3">
+        <h2 class="font-title text-lg font-bold text-amber-400">PLAYER RANKINGS</h2><span id="playerCount" class="text-xs bg-slate-700 px-2 py-1 rounded-full text-slate-300">0 players</span>
+       </div>
+       <div id="playerList" class="space-y-1.5 max-h-96 overflow-auto pr-1"></div>
+       <div id="noPlayers" class="text-center py-8 text-slate-500 text-sm">
+        No players yet. Create or auto-generate players above.
+       </div>
+      </div>
+     </div>
+    </div><!-- Draft Tab -->
+    <div id="tab-draft" class="hidden animate-slide">
+     <div id="preDraft">
+      <h2 class="font-title text-lg font-bold text-amber-400 mb-3">DRAFT SETUP</h2>
+      <div class="bg-slate-900/70 rounded-xl p-4 border border-slate-700/50 space-y-4">
+       <div><label class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Rounds</label> <select id="draftRounds" class="w-full mt-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm"> <option value="1">1 Round</option><option value="2">2 Rounds</option><option value="3" selected>3 Rounds</option><option value="4">4 Rounds</option> </select>
+       </div>
+       <div id="draftInfo" class="text-sm text-slate-400"></div>
+       <div class="flex gap-3"><button onclick="startDraft()" class="flex-1 py-3 rounded-xl font-title font-bold text-sm tracking-wider transition-all hover:scale-[1.02]" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a;">START DRAFT</button> <button onclick="simulateFullDraft()" class="flex-1 py-3 rounded-xl font-title font-bold text-sm tracking-wider bg-indigo-600 hover:bg-indigo-500 transition-all hover:scale-[1.02]">SIM ALL</button>
+       </div>
+      </div>
+     </div>
+     <div id="liveDraft" class="hidden">
+      <div class="flex items-center justify-between mb-3">
+       <h2 class="font-title text-lg font-bold text-amber-400">LIVE DRAFT</h2><button onclick="simNextPick()" id="simPickBtn" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold transition-colors">Sim This Pick</button>
+      </div>
+      <div id="onTheClock" class="bg-slate-900/70 rounded-xl p-4 border-2 border-amber-500/50 mb-4 animate-pulse-glow"></div>
+      <div id="availablePlayers" class="bg-slate-900/70 rounded-xl p-4 border border-slate-700/50">
+       <h3 class="text-sm font-bold text-slate-300 mb-2 uppercase tracking-wide">Available Players</h3>
+       <div id="availableList" class="space-y-1.5 max-h-64 overflow-auto pr-1"></div>
+      </div>
+     </div>
+     <div id="draftComplete" class="hidden text-center py-12">
+      <div class="font-title text-3xl font-black text-amber-400 mb-2">
+       DRAFT COMPLETE!
+      </div>
+      <p class="text-slate-400 mb-4">All picks are in. Check the Board tab for full results.</p><button onclick="resetDraft()" class="px-6 py-3 rounded-xl font-title font-bold text-sm tracking-wider bg-slate-700 hover:bg-slate-600 transition-colors">NEW DRAFT</button>
+     </div>
+    </div><!-- Board Tab -->
+    <div id="tab-board" class="hidden animate-slide">
+     <h2 class="font-title text-lg font-bold text-amber-400 mb-3">DRAFT BOARD</h2>
+     <div id="draftBoard" class="space-y-1"></div>
+     <div id="noPicks" class="text-center py-8 text-slate-500 text-sm">
+      No picks yet. Start the draft first!
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+// --- TEAMS ---
+const TEAMS = [
+  { name: "Thunderbolts", abbr: "THB", color: "#3b82f6", accent: "#93c5fd", emoji: "⚡" },
+  { name: "Inferno", abbr: "INF", color: "#ef4444", accent: "#fca5a5", emoji: "🔥" },
+  { name: "Phantom Wolves", abbr: "PHW", color: "#8b5cf6", accent: "#c4b5fd", emoji: "🐺" },
+  { name: "Iron Titans", abbr: "ITN", color: "#6b7280", accent: "#d1d5db", emoji: "🛡️" },
+  { name: "Solar Kings", abbr: "SOL", color: "#f59e0b", accent: "#fde68a", emoji: "👑" },
+  { name: "Arctic Foxes", abbr: "AFX", color: "#06b6d4", accent: "#a5f3fc", emoji: "🦊" },
+  { name: "Venom Strikers", abbr: "VNM", color: "#22c55e", accent: "#86efac", emoji: "🐍" },
+  { name: "Crimson Hawks", abbr: "CRH", color: "#dc2626", accent: "#fecaca", emoji: "🦅" },
+  { name: "Storm Reapers", abbr: "SRP", color: "#7c3aed", accent: "#ddd6fe", emoji: "🌪️" },
+  { name: "Golden Bears", abbr: "GBR", color: "#ca8a04", accent: "#fef08a", emoji: "🐻" },
+  { name: "Night Owls", abbr: "NOW", color: "#1e40af", accent: "#bfdbfe", emoji: "🦉" },
+  { name: "Blaze Dragons", abbr: "BDR", color: "#ea580c", accent: "#fed7aa", emoji: "🐉" },
+];
+
+const STAT_NAMES = ["Speed", "Strength", "Agility", "Intelligence", "Stamina"];
+const POSITIONS = ["Quarterback","Running Back","Wide Receiver","Tight End","Offensive Line","Defensive Line","Linebacker","Cornerback","Safety","Kicker"];
+const FIRST_NAMES = ["Marcus","Jaylen","Tyler","Devon","Caleb","Zion","Kai","Dante","Malik","Reese","Bryce","Xavier","Jalen","Trey","Nolan","Aiden","Chase","Darius","Elijah","Phoenix","Ryder","Blake","Cruz","Ezra","Flynn","Grayson","Hayes","Ivan","Jett","Knox","Leo","Nash"];
+const LAST_NAMES = ["Williams","Johnson","Rodriguez","Thompson","Garcia","Martinez","Anderson","Jackson","Wilson","Harris","Clark","Lewis","Young","Allen","King","Wright","Scott","Hill","Green","Baker","Stone","Cruz","Frost","Hawk","Blaze","Storm","Fox","Wolf","Knight","Steel"];
+
+let players = [];
+let userTeam = -1;
+let draftState = null;
+let draftPicks = [];
+
+// --- DEFAULT CONFIG ---
+const defaultConfig = {
+  app_title: "DRAFT DAY SIMULATOR",
+  background_color: "#0f172a",
+  surface_color: "#1e293b",
+  text_color: "#f8fafc",
+  primary_color: "#f59e0b",
+  secondary_color: "#6366f1",
+  font_family: "Rajdhani",
+  font_size: 16
+};
+
+// --- ELEMENT SDK ---
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async (config) => {
+    const bg = config.background_color || defaultConfig.background_color;
+    const surface = config.surface_color || defaultConfig.surface_color;
+    const text = config.text_color || defaultConfig.text_color;
+    const primary = config.primary_color || defaultConfig.primary_color;
+    const secondary = config.secondary_color || defaultConfig.secondary_color;
+    const font = config.font_family || defaultConfig.font_family;
+    const fs = config.font_size || defaultConfig.font_size;
+
+    document.body.style.fontFamily = `${font}, Rajdhani, sans-serif`;
+    document.body.style.color = text;
+    document.getElementById('app').style.background = `linear-gradient(135deg, ${bg} 0%, #1e1b4b 50%, ${bg} 100%)`;
+
+    const title = config.app_title || defaultConfig.app_title;
+    const el = document.getElementById('appTitle');
+    el.textContent = title;
+    el.style.backgroundImage = `linear-gradient(90deg, ${primary}, ${primary})`;
+    el.style.fontSize = `${fs * 1.25}px`;
+
+    document.querySelectorAll('.tab-btn.active').forEach(b => {
+      b.style.background = `linear-gradient(135deg, ${primary}, ${primary})`;
+    });
+  },
+  mapToCapabilities: (config) => ({
+    recolorables: [
+      { get: () => config.background_color || defaultConfig.background_color, set: v => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+      { get: () => config.surface_color || defaultConfig.surface_color, set: v => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+      { get: () => config.text_color || defaultConfig.text_color, set: v => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+      { get: () => config.primary_color || defaultConfig.primary_color, set: v => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+      { get: () => config.secondary_color || defaultConfig.secondary_color, set: v => { config.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); } },
+    ],
+    borderables: [],
+    fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: v => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+    fontSizeable: { get: () => config.font_size || defaultConfig.font_size, set: v => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } },
+  }),
+  mapToEditPanelValues: (config) => new Map([
+    ["app_title", config.app_title || defaultConfig.app_title]
+  ])
+});
+
+// --- UI FUNCTIONS ---
+function switchTab(tab) {
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+  document.getElementById('tab-' + tab).classList.add('animate-slide');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = '';
+  });
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+  document.querySelector(`[data-tab="${tab}"]`).style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+}
+
+function renderTeams() {
+  const grid = document.getElementById('teamsGrid');
+  grid.innerHTML = TEAMS.map((t, i) => `
+    <div class="team-card cursor-pointer rounded-xl p-3 border-2 text-center ${userTeam === i ? 'border-amber-400' : 'border-slate-700/50'}" 
+         style="background: linear-gradient(135deg, ${t.color}20, ${t.color}10);" onclick="selectTeam(${i})">
+      <div class="text-3xl mb-1">${t.emoji}</div>
+      <div class="font-title font-bold text-sm" style="color:${t.accent}">${t.name}</div>
+      <div class="text-xs text-slate-400">${t.abbr}</div>
+      ${userTeam === i ? '<div class="text-xs mt-1 text-amber-400 font-bold">✓ YOUR TEAM</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function selectTeam(i) { userTeam = i; renderTeams(); }
+function clearTeamSelection() { userTeam = -1; renderTeams(); }
+
+function buildStatSliders() {
+  const container = document.getElementById('statsSliders');
+  container.innerHTML = STAT_NAMES.map((s, i) => `
+    <div>
+      <div class="flex justify-between text-xs"><span class="text-slate-400 font-semibold uppercase tracking-wide">${s}</span><span id="statVal${i}" class="text-amber-400 font-bold">50</span></div>
+      <input type="range" min="20" max="99" value="50" class="slider-stat w-full mt-1" id="stat${i}" oninput="updateStatDisplay(${i})">
+    </div>
+  `).join('');
+  updateOverall();
+}
+
+function updateStatDisplay(i) {
+  document.getElementById('statVal' + i).textContent = document.getElementById('stat' + i).value;
+  updateOverall();
+}
+
+function updateOverall() {
+  const avg = Math.round(STAT_NAMES.reduce((s, _, i) => s + parseInt(document.getElementById('stat' + i).value), 0) / 5);
+  document.getElementById('overallRating').textContent = avg;
+}
+
+function randomizeStats() {
+  STAT_NAMES.forEach((_, i) => {
+    const v = Math.floor(Math.random() * 60) + 30;
+    document.getElementById('stat' + i).value = v;
+    document.getElementById('statVal' + i).textContent = v;
+  });
+  updateOverall();
+}
+
+function addPlayer() {
+  const name = document.getElementById('playerName').value.trim();
+  if (!name) { showToast("Please enter a player name"); return; }
+  const stats = STAT_NAMES.map((_, i) => parseInt(document.getElementById('stat' + i).value));
+  players.push({
+    id: Date.now() + Math.random(),
+    name, position: document.getElementById('playerPos').value,
+    stats, overall: Math.round(stats.reduce((a, b) => a + b, 0) / 5)
+  });
+  document.getElementById('playerName').value = '';
+  randomizeStats();
+  renderPlayers();
+  showToast(`${name} added!`);
+}
+
+function generatePlayers() {
+  for (let i = 0; i < 36; i++) {
+    const fn = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+    const ln = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+    const stats = STAT_NAMES.map(() => Math.floor(Math.random() * 55) + 35);
+    players.push({
+      id: Date.now() + Math.random() + i,
+      name: `${fn} ${ln}`, position: POSITIONS[Math.floor(Math.random() * POSITIONS.length)],
+      stats, overall: Math.round(stats.reduce((a, b) => a + b, 0) / 5)
+    });
+  }
+  renderPlayers();
+  showToast("36 players generated!");
+}
+
+function renderPlayers() {
+  const sorted = [...players].sort((a, b) => b.overall - a.overall);
+  document.getElementById('playerCount').textContent = `${players.length} players`;
+  document.getElementById('noPlayers').classList.toggle('hidden', players.length > 0);
+  const list = document.getElementById('playerList');
+  list.innerHTML = sorted.map((p, i) => `
+    <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors">
+      <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${ratingColor(p.overall)}">${i + 1}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-sm truncate">${p.name}</div>
+        <div class="text-xs text-slate-400">${p.position}</div>
+      </div>
+      <div class="font-title font-bold text-lg ${ratingTextColor(p.overall)}">${p.overall}</div>
+      <button onclick="removePlayer(${players.indexOf(p)})" class="text-slate-500 hover:text-red-400 transition-colors"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
+    </div>
+  `).join('');
+  lucide.createIcons();
+  updateDraftInfo();
+}
+
+function ratingColor(r) { return r >= 80 ? 'bg-emerald-600' : r >= 65 ? 'bg-blue-600' : r >= 50 ? 'bg-amber-600' : 'bg-slate-600'; }
+function ratingTextColor(r) { return r >= 80 ? 'text-emerald-400' : r >= 65 ? 'text-blue-400' : r >= 50 ? 'text-amber-400' : 'text-slate-400'; }
+
+function removePlayer(idx) { players.splice(idx, 1); renderPlayers(); }
+
+function updateDraftInfo() {
+  const rounds = parseInt(document.getElementById('draftRounds').value);
+  const needed = rounds * 12;
+  const info = document.getElementById('draftInfo');
+  info.innerHTML = `<p>${rounds} round(s) × 12 teams = <strong>${needed} picks needed</strong></p>
+    <p>Available players: <strong class="${players.length >= needed ? 'text-emerald-400' : 'text-red-400'}">${players.length}</strong></p>
+    ${players.length < needed ? `<p class="text-red-400 mt-1">Need ${needed - players.length} more players!</p>` : ''}
+    ${userTeam >= 0 ? `<p class="mt-1">Your team: <strong style="color:${TEAMS[userTeam].accent}">${TEAMS[userTeam].emoji} ${TEAMS[userTeam].name}</strong></p>` : '<p class="mt-1 text-slate-500">No team selected — full simulation mode</p>'}`;
+}
+
+// --- DRAFT ---
+function startDraft() {
+  const rounds = parseInt(document.getElementById('draftRounds').value);
+  if (players.length < rounds * 12) { showToast("Not enough players!"); return; }
+  draftPicks = [];
+  draftState = {
+    round: 1, pick: 1, totalRounds: rounds,
+    available: [...players].sort((a, b) => b.overall - a.overall),
+    order: [...Array(12).keys()],
+    teamRosters: Array.from({ length: 12 }, () => [])
+  };
+  document.getElementById('preDraft').classList.add('hidden');
+  document.getElementById('liveDraft').classList.remove('hidden');
+  document.getElementById('draftStatus').classList.remove('hidden');
+  advanceDraft();
+}
+
+function advanceDraft() {
+  if (!draftState || draftState.available.length === 0 || draftState.round > draftState.totalRounds) {
+    endDraft(); return;
+  }
+  const teamIdx = draftState.order[draftState.pick - 1];
+  document.getElementById('roundNum').textContent = draftState.round;
+  document.getElementById('pickNum').textContent = draftState.pick;
+
+  const team = TEAMS[teamIdx];
+  const otc = document.getElementById('onTheClock');
+  const isUser = teamIdx === userTeam;
+
+  otc.innerHTML = `
+    <div class="flex items-center gap-3 mb-3">
+      <div class="text-3xl">${team.emoji}</div>
+      <div>
+        <div class="font-title font-bold text-sm uppercase tracking-wide" style="color:${team.accent}">On The Clock</div>
+        <div class="font-title font-bold text-xl" style="color:${team.color}">${team.name}</div>
+      </div>
+      ${isUser ? '<div class="ml-auto px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold animate-pulse">YOUR PICK!</div>' : ''}
+    </div>`;
+
+  document.getElementById('simPickBtn').classList.toggle('hidden', isUser);
+  renderAvailable(isUser, teamIdx);
+
+  if (!isUser && userTeam >= 0) {
+    // AI pick with delay for dramatic effect
+    setTimeout(() => { aiPick(teamIdx); }, 800);
+  }
+}
+
+function renderAvailable(isUser, teamIdx) {
+  const list = document.getElementById('availableList');
+  list.innerHTML = draftState.available.slice(0, 20).map(p => `
+    <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors ${isUser ? 'cursor-pointer' : ''}" 
+         ${isUser ? `onclick="userPick('${p.id}', ${teamIdx})"` : ''}>
+      <div class="font-title font-bold text-lg w-10 text-center ${ratingTextColor(p.overall)}">${p.overall}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-sm">${p.name}</div>
+        <div class="text-xs text-slate-400">${p.position}</div>
+      </div>
+      <div class="flex gap-1">${p.stats.map((s, i) => `<div class="text-center"><div class="text-[10px] text-slate-500">${STAT_NAMES[i].slice(0,3)}</div><div class="text-xs font-bold ${ratingTextColor(s)}">${s}</div></div>`).join('')}</div>
+      ${isUser ? '<div class="text-amber-400"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>' : ''}
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+function userPick(playerId, teamIdx) {
+  const pIdx = draftState.available.findIndex(p => String(p.id) === String(playerId));
+  if (pIdx === -1) return;
+  makePick(teamIdx, pIdx);
+}
+
+function aiPick(teamIdx) {
+  if (!draftState) return;
+  // AI picks best available with slight randomness
+  const topN = Math.min(3, draftState.available.length);
+  const idx = Math.floor(Math.random() * topN);
+  makePick(teamIdx, idx);
+}
+
+function simNextPick() {
+  if (!draftState) return;
+  const teamIdx = draftState.order[draftState.pick - 1];
+  aiPick(teamIdx);
+}
+
+function makePick(teamIdx, playerIdx) {
+  const player = draftState.available.splice(playerIdx, 1)[0];
+  const pick = { round: draftState.round, pick: draftState.pick, overall: (draftState.round - 1) * 12 + draftState.pick, team: teamIdx, player };
+  draftPicks.push(pick);
+  draftState.teamRosters[teamIdx].push(player);
+
+  // Advance
+  draftState.pick++;
+  if (draftState.pick > 12) {
+    draftState.round++;
+    draftState.pick = 1;
+    // Snake draft: reverse order each round
+    draftState.order.reverse();
+  }
+  renderBoard();
+  advanceDraft();
+}
+
+function simulateFullDraft() {
+  const rounds = parseInt(document.getElementById('draftRounds').value);
+  if (players.length < rounds * 12) { showToast("Not enough players!"); return; }
+  draftPicks = [];
+  const available = [...players].sort((a, b) => b.overall - a.overall);
+  const order = [...Array(12).keys()];
+  for (let r = 0; r < rounds; r++) {
+    for (let p = 0; p < 12; p++) {
+      const teamIdx = order[p];
+      const topN = Math.min(3, available.length);
+      const idx = Math.floor(Math.random() * topN);
+      const player = available.splice(idx, 1)[0];
+      draftPicks.push({ round: r + 1, pick: p + 1, overall: r * 12 + p + 1, team: teamIdx, player });
+    }
+    order.reverse();
+  }
+  draftState = null;
+  document.getElementById('preDraft').classList.add('hidden');
+  document.getElementById('draftStatus').classList.add('hidden');
+  renderBoard();
+  endDraft();
+}
+
+function endDraft() {
+  draftState = null;
+  document.getElementById('liveDraft').classList.add('hidden');
+  document.getElementById('draftComplete').classList.remove('hidden');
+  document.getElementById('draftStatus').classList.add('hidden');
+  renderBoard();
+  switchTab('board');
+}
+
+function resetDraft() {
+  draftPicks = [];
+  draftState = null;
+  document.getElementById('preDraft').classList.remove('hidden');
+  document.getElementById('liveDraft').classList.add('hidden');
+  document.getElementById('draftComplete').classList.add('hidden');
+  document.getElementById('draftStatus').classList.add('hidden');
+  updateDraftInfo();
+}
+
+function renderBoard() {
+  const board = document.getElementById('draftBoard');
+  document.getElementById('noPicks').classList.toggle('hidden', draftPicks.length > 0);
+  board.innerHTML = draftPicks.map((pk, i) => {
+    const t = TEAMS[pk.team];
+    return `<div class="draft-pick-row flex items-center gap-3 p-2 rounded-lg animate-slide" style="background:${t.color}15; animation-delay:${Math.min(i * 30, 500)}ms;">
+      <div class="w-8 text-center font-title font-bold text-sm text-slate-400">${pk.overall}</div>
+      <div class="text-xl">${t.emoji}</div>
+      <div class="font-bold text-sm" style="color:${t.accent}">${t.abbr}</div>
+      <div class="flex-1 font-semibold text-sm">${pk.player.name}</div>
+      <div class="text-xs text-slate-400">${pk.player.position}</div>
+      <div class="font-title font-bold ${ratingTextColor(pk.player.overall)}">${pk.player.overall}</div>
+    </div>`;
+  }).join('');
+}
+
+// --- TOAST ---
+function showToast(msg) {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'toast';
+  toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-amber-500 text-black font-bold text-sm z-50 animate-slide';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+// --- INIT ---
+renderTeams();
+buildStatSliders();
+randomizeStats();
+updateDraftInfo();
+document.getElementById('draftRounds').addEventListener('change', updateDraftInfo);
+lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9f187ec722342ef5',t:'MTc3NzA2OTIyNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
